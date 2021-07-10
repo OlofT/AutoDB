@@ -6,11 +6,7 @@
 //
 
 import Foundation
-#if canImport(CombineX)
-import CombineX
-#elseif canImport(Combine)
-import Combine
-#endif
+import CXShim
 
 /**
  To keep track of all changes of all objects, we simply use Combine's objectWillChange method, and store them in a weak list - when deallocated we remove them and cancel their listeners.

@@ -6,7 +6,8 @@
 //
 
 import Foundation
-import Combine
+import CXShim
+import GRDB
 
 //TODO: encode all unknown formats to data, JSON or some faster/smaller format
 
@@ -55,6 +56,8 @@ struct TableInfo {
     var createTableSyntax: String {
         
         return "CREATE table (\(columnNameString)) column statement: (\(columnStatement))"
+        
+        
     }
 }
 
@@ -76,6 +79,7 @@ class SQLTableEncoder: Encoder {
             iterateOptionalProperties(Mirror(reflecting: object))
             
             //Now compare with current tableDefinition and handle migration
+            //TableDefinition is fileprivate!
         }
     }
     
@@ -141,14 +145,14 @@ class SQLTableEncoder: Encoder {
             
             //or types
             case is String.Type:
-                columnType = .textOpt
+                columnType = .text
             case is Data.Type:
-                columnType = .blobOpt
+                columnType = .blob
             case is Double.Type, is Float.Type, is Date.Type:
-                columnType = .realOpt
+                columnType = .real
             case is Int.Type, is Int8.Type, is Int16.Type, is Int64.Type, is Int32.Type,
                  is UInt.Type, is UInt8.Type, is UInt16.Type, is UInt64.Type, is UInt32.Type:
-                columnType = .integerOpt
+                columnType = .integer
                 
             //or types that are optional
             case is String?.Type:
@@ -189,7 +193,7 @@ class SQLTableEncoder: Encoder {
                     continue
                 }
                 let metaType = type(of: child.value)
-                //print("child \(label): \(metaType) from: \(child)")
+                print("child \(label): \(metaType) from: \(child)")
                 if let columnType = SQLTableEncoder.getColumnType(metaType) {
                     
                     addColumn(label, columnType)
@@ -233,12 +237,9 @@ class SQLTableEncoder: Encoder {
                     enc.singleValueEncoder.lastType = nil
                 }
                 else {
-                    //print("Could not encode \(T.self) for \(key.stringValue)")
-                    //We know we can handle it since a codable - but it's not of our basic types so encode/decode using optional data.
+                    //We know we can handle it since a codable - but it's not of our basic types, and its not an optional - then we would be able to handle it. => so encode/decode using data.
                     
-                    //NO! if its a publisher with non-opt values, this will break stuff!
-                    
-                    enc.addColumn(key.stringValue, .blobOpt)
+                    enc.addColumn(key.stringValue, .blob)
                     //let js = JSONEncoder.init()
                     //let data = try js.encode(value)
                     //print("we got JSON: \(String(data: data, encoding: .utf8)!)")

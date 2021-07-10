@@ -5,12 +5,13 @@
 //  Created by Olof Thorén on 2021-07-02.
 //
 import Foundation
-import Combine
+import CXShim
 import AutoDB
+import GRDB
 
 // They must all inherit and implement AutoDBModel, AutoDBProtocol
 // They must all not have an init OR an empty required one: required init() {... setup }, you may use convenience inits instead.
-class DataAndDate: AutoDBModel, AutoDBProtocol {
+class DataAndDate: AutoDBModel, AutoDBProtocol, FetchableRecord, PersistableRecord {
     
     convenience init(_ id: UInt64) {
         self.init()

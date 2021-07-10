@@ -1,7 +1,95 @@
     import XCTest
     @testable import AutoDB
+    import GRDB
+    import Foundation
+    
+    class Resource {
+        static var resourcePath = "./Tests/Resources"
+
+        let name: String
+        let type: String
+
+        init(name: String, type: String) {
+            self.name = name
+            self.type = type
+        }
+
+        var path: String {
+            guard let path: String = Bundle(for: Swift.type(of: self)).path(forResource: name, ofType: type) else {
+                let filename: String = type.isEmpty ? name : "\(name).\(type)"
+                return "\(Resource.resourcePath)/\(filename)"
+            }
+            return path
+        }
+    }
 
     final class AutoDBTests: XCTestCase {
+        
+        static var resourcePath: String = {
+            let path = "./Tests/Resources"
+            let manager = FileManager.default
+            if manager.fileExists(atPath: path) == false {
+                do {
+                    try manager.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: nil)
+                } catch {
+                    print("Could not create resources folder: \(error.localizedDescription)")
+                }
+            }
+            return path
+        }()
+        
+        func testGRDBImport() throws {
+            
+            // 1. Open a database connection
+            let dbQueue = try DatabaseQueue(path: Self.resourcePath + "/database.sqlite")
+            // 2. Define the database schema
+            try dbQueue.write { db in
+                try db.create(table: "player", ifNotExists: true) { t in
+                    t.autoIncrementedPrimaryKey("id")
+                    t.column("name", .text).notNull().defaults(to: "sam")
+                    t.column("score", .integer).defaults(to: 2).notNull()
+                }
+            }
+            // 3. Define a record type
+            struct Player: Codable, FetchableRecord, PersistableRecord {
+                var id: Int64
+                var name: String
+                var score: Int
+            }
+
+            // 4. Access the database
+            try? dbQueue.write { db in
+                try Player(id: 1, name: "Arthur", score: 100).insert(db)
+                try Player(id: 2, name: "Barbara", score: 1000).insert(db)
+            }
+
+            let players: [Player] = try dbQueue.read { db in
+                try Player.fetchAll(db)
+            }
+            print(players.first!.name)
+            
+            //
+            try dbQueue.read { db in
+                
+                //We can't find default values... Strange!
+                let className = "player"
+                let row = try Row.fetchOne(db, sql: "SELECT sql FROM sqlite_master WHERE name = '\(className)'")
+                print(row!)
+                
+                for row in try Row.fetchAll(db, sql: "PRAGMA table_info('\(className)')") {
+                    
+                    print(row)
+                    
+                    let name:String = row["name"]
+                    let type:String = row["type"]
+                    let notnull:Int = row["notnull"]
+                    
+                    print("\(name) of \(type) \(notnull == 1 ? "NOTNULL" : "NULL")")
+                }
+            }
+            
+            print("done!")
+        }
         
         func testReturningTypes() {
             
@@ -32,7 +120,7 @@
             try encoder.setup(for: [BaseClass.self, Child.self])
             
             let table = encoder.createTableSyntax(Child.typeName)
-            XCTAssertEqual(table, "CREATE table (arrayWithEncodables,arrayWithEncodablesPub,anOptIntPub,regularIntPub,id,ignoreProperty,anOptInt) column statement: (arrayWithEncodables : blobOpt,arrayWithEncodablesPub : blobOpt,anOptIntPub : integerOpt,regularIntPub : integerOpt,id : integer,ignoreProperty : text,anOptInt : integerOpt)")
+            XCTAssertEqual(table, "CREATE table (arrayWithEncodables,arrayWithEncodablesPub,anOptIntPub,regularIntPub,id,ignoreProperty,anOptInt) column statement: (arrayWithEncodables : blob,arrayWithEncodablesPub : blob,anOptIntPub : integerOpt,regularIntPub : integer,id : integer,ignoreProperty : text,anOptInt : integerOpt)")
             
             print("\"\(encoder.createTableSyntax(Child.typeName))\"")
         }
@@ -78,11 +166,11 @@
             var trial2:BaseClass? = BaseClass()
             trial2!.id = 666
             AutoDBManager.register(trial2!)
-            trial2!.anOptInt = 2
+            trial2!.anOptIntPub = 2
             
             print("objects: \(lookupObjectsCount(typeName))")
             XCTAssertEqual(lookupObjectsCount(typeName), 2, "Adding items")
-            XCTAssertEqual(changeObjectsCount(typeName), 2, "Changing")
+            XCTAssertEqual(changeObjectsCount(typeName), 2, "Fail changing in register")
             
             trial = nil
             trial2 = nil

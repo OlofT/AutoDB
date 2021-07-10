@@ -1,12 +1,6 @@
 import Foundation
 //For linux we can't import Combine - we need conditional imports if combine nor any other like CombineX exists, and then implement ObservableObject + @Published
-#if canImport(CombineX)
-//we can use this: @_exported
-import CombineX
-#elseif canImport(Combine)
-//we can use this: @_exported
-import Combine
-#endif
+import CXShim
 
 /*
  Tidbits and discussions:
@@ -62,7 +56,8 @@ public extension AutoDBIDProtocol {
     
     static func generateId() -> UInt64 {
         
-        return UInt64(arc4random()) << 28 | (UInt64(arc4random()) >> 4)
+        let random = UInt64.random(in: 1..<UInt64.max)
+        return random >> 4  //save some bits for Swift's optimisations
     }
 }
 
